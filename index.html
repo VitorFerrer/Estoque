@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Equipamentos — Escola</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#F3F4F0;
+    --surface:#FFFFFF;
+    --surface-2:#EBEEE8;
+    --ink:#1B231F;
+    --ink-soft:#5C665F;
+    --ink-faint:#8B968F;
+    --border:#DBE0D8;
+    --entrada:#2F6F4E;
+    --entrada-soft:#E3F0E8;
+    --saida:#B5482B;
+    --saida-soft:#F6E6E0;
+    --sidebar-bg:#182220;
+    --sidebar-ink:#EAEEE9;
+    --sidebar-dim:#8A968F;
+    --sidebar-active:#25332F;
+    --warn:#B5482B;
+    --radius:8px;
+    --font-d:'Barlow Condensed',sans-serif;
+    --font-b:'Public Sans',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-b);
+    font-size:14px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select{font-family:inherit;font-size:inherit;color:inherit;}
+  ::selection{background:#cfe0d5;}
+
+  .app{display:flex;min-height:100vh;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:230px;flex-shrink:0;background:var(--sidebar-bg);color:var(--sidebar-ink);
+    display:flex;flex-direction:column;padding:22px 14px;position:sticky;top:0;height:100vh;
+  }
+  .brand{padding:4px 10px 22px 10px;border-bottom:1px solid #2B3733;margin-bottom:16px;}
+  .brand-title{font-family:var(--font-d);font-weight:700;font-size:22px;letter-spacing:.2px;line-height:1;color:#fff;}
+  .brand-sub{font-size:11.5px;color:var(--sidebar-dim);margin-top:5px;}
+  .nav{display:flex;flex-direction:column;gap:3px;flex:1;}
+  .nav-btn{
+    display:flex;align-items:center;gap:10px;padding:10px 12px;border:none;background:transparent;
+    color:var(--sidebar-dim);border-radius:7px;cursor:pointer;text-align:left;font-size:14.5px;font-weight:500;
+    transition:background .12s,color .12s;
+  }
+  .nav-btn svg{flex-shrink:0;width:18px;height:18px;}
+  .nav-btn:hover{background:#20302B;color:var(--sidebar-ink);}
+  .nav-btn.active{background:var(--sidebar-active);color:#fff;}
+  .nav-btn.active svg{stroke:#7FBF9E;}
+  .sidebar-clock{padding:12px 10px;border-top:1px solid #2B3733;margin-top:10px;}
+  .sidebar-clock .day{font-family:var(--font-d);font-size:16px;color:#fff;text-transform:capitalize;}
+  .sidebar-clock .time{font-size:12px;color:var(--sidebar-dim);margin-top:2px;}
+
+  /* ---------- MAIN ---------- */
+  .main{flex:1;min-width:0;padding:26px 34px 60px 34px;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:20px;flex-wrap:wrap;}
+  .topbar h1{font-family:var(--font-d);font-weight:700;font-size:30px;margin:0;line-height:1;}
+  .topbar p{margin:6px 0 0 0;color:var(--ink-soft);font-size:13.5px;max-width:520px;}
+
+  .page{display:none;}
+  .page.active{display:block;}
+
+  /* ---------- CARDS / STATS ---------- */
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:24px;}
+  .stat-card{
+    background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--dev-color,#888);
+    border-radius:var(--radius);padding:13px 14px;
+  }
+  .stat-card .dev-name{font-family:var(--font-d);font-weight:600;font-size:16px;letter-spacing:.2px;}
+  .stat-card .dev-numbers{display:flex;gap:14px;margin-top:8px;}
+  .stat-card .num-block .n{font-family:var(--font-d);font-size:22px;font-weight:600;line-height:1;}
+  .stat-card .num-block .l{font-size:10.5px;color:var(--ink-faint);margin-top:3px;}
+  .stat-card.low{border-left-color:var(--warn);}
+  .stat-card.low .avail{color:var(--warn);}
+
+  .callout{
+    background:var(--surface-2);border:1px dashed var(--ink-faint);border-radius:var(--radius);
+    padding:12px 16px;font-size:13px;color:var(--ink-soft);margin-bottom:20px;
+  }
+  .callout b{color:var(--ink);}
+
+  /* ---------- PANELS ---------- */
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px;}
+  .panel-title{font-family:var(--font-d);font-weight:600;font-size:19px;margin:0 0 16px 0;}
+  .panel-title small{display:block;font-family:var(--font-b);font-weight:400;color:var(--ink-soft);font-size:12.5px;margin-top:3px;}
+
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;}
+  .col-3{grid-column:span 3;}
+  .col-4{grid-column:span 4;}
+  .col-6{grid-column:span 6;}
+  .col-12{grid-column:span 12;}
+  @media(max-width:900px){.col-3,.col-4,.col-6{grid-column:span 12;}}
+
+  label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;text-transform:none;}
+  input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{
+    width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;
+    outline:none;transition:border-color .12s;
+  }
+  input:focus,select:focus,textarea:focus{border-color:#8FAE9C;}
+  .field{margin-bottom:14px;}
+
+  .toggle-row{display:flex;gap:10px;}
+  .toggle-btn{
+    flex:1;padding:12px;border-radius:7px;border:1.5px solid var(--border);background:#fff;cursor:pointer;
+    font-weight:600;font-size:14.5px;display:flex;align-items:center;justify-content:center;gap:7px;
+    transition:all .12s;
+  }
+  .toggle-btn[data-active="1"]{color:#fff;}
+  .toggle-btn.entrada[data-active="1"]{background:var(--entrada);border-color:var(--entrada);}
+  .toggle-btn.saida[data-active="1"]{background:var(--saida);border-color:var(--saida);}
+  .toggle-btn:not([data-active="1"]):hover{background:var(--surface-2);}
+
+  .chip-group{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{
+    padding:8px 13px;border-radius:20px;border:1.5px solid var(--border);background:#fff;cursor:pointer;
+    font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:7px;transition:all .12s;
+  }
+  .chip .dot{width:9px;height:9px;border-radius:50%;background:var(--c,#888);}
+  .chip[data-active="1"]{border-color:var(--c,#888);background:color-mix(in srgb, var(--c,#888) 14%, white);}
+
+  .qty-row{display:flex;align-items:stretch;gap:8px;}
+  .qty-btn{width:40px;border:1px solid var(--border);background:var(--surface-2);border-radius:6px;font-size:19px;cursor:pointer;font-weight:600;}
+  .qty-row input{text-align:center;font-weight:700;font-family:var(--font-d);font-size:18px;}
+
+  .btn{
+    padding:10px 18px;border-radius:7px;border:1.5px solid var(--ink);background:var(--ink);color:#fff;
+    font-weight:600;cursor:pointer;font-size:13.5px;display:inline-flex;align-items:center;gap:7px;
+    transition:opacity .12s;
+  }
+  .btn:hover{opacity:.85;}
+  .btn.ghost{background:transparent;color:var(--ink);border-color:var(--border);}
+  .btn.danger{background:var(--saida);border-color:var(--saida);}
+  .btn.small{padding:6px 11px;font-size:12.5px;border-radius:6px;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .warn-banner{
+    background:var(--saida-soft);border:1px solid var(--saida);color:#7A331E;padding:10px 14px;border-radius:7px;
+    font-size:13px;margin-bottom:14px;display:none;
+  }
+
+  /* ---------- TABLES ---------- */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-faint);
+    font-weight:700;padding:8px 10px;border-bottom:1.5px solid var(--border);
+  }
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:hover{background:var(--surface-2);}
+  .tag{padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:5px;}
+  .tag.entrada{background:var(--entrada-soft);color:var(--entrada);}
+  .tag.saida{background:var(--saida-soft);color:var(--saida);}
+  .dev-tag{display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+  .dev-tag .dot{width:8px;height:8px;border-radius:50%;}
+  .icon-btn{
+    border:none;background:transparent;cursor:pointer;padding:5px;border-radius:5px;color:var(--ink-faint);
+    display:inline-flex;
+  }
+  .icon-btn:hover{background:var(--saida-soft);color:var(--saida);}
+  .table-empty{padding:30px;text-align:center;color:var(--ink-faint);font-size:13px;}
+  .table-wrap{overflow-x:auto;}
+
+  .filters-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:16px;}
+  .filters-bar .f{min-width:140px;flex:1;}
+  .filters-bar label{margin-bottom:5px;}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  /* ---------- TOAST ---------- */
+  #toast-wrap{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:8px;z-index:999;}
+  .toast{
+    background:var(--ink);color:#fff;padding:11px 16px;border-radius:7px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.18);
+    animation:toastIn .15s ease-out;max-width:320px;
+  }
+  .toast.err{background:var(--saida);}
+  .toast.ok{background:var(--entrada);}
+  @keyframes toastIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  .inv-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);}
+  .inv-row:last-child{border-bottom:none;}
+  .inv-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+  .inv-name{font-family:var(--font-d);font-weight:600;font-size:17px;width:130px;flex-shrink:0;}
+  .inv-stat{text-align:center;min-width:70px;}
+  .inv-stat .n{font-family:var(--font-d);font-weight:600;font-size:19px;}
+  .inv-stat .l{font-size:10.5px;color:var(--ink-faint);}
+  .inv-edit{display:flex;gap:8px;align-items:center;margin-left:auto;}
+  .inv-edit input{width:80px;}
+
+  .sched-empty-hint{color:var(--ink-faint);font-size:13px;}
+
+  #newdev-form{display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);}
+
+  ::-webkit-scrollbar{height:8px;width:8px;}
+  ::-webkit-scrollbar-thumb{background:#c7cec6;border-radius:8px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-title">Sala do Estoque</div>
+      <div class="brand-sub">Controle de notebooks e tablets</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-btn active" data-page="registrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Registrar
+      </button>
+      <button class="nav-btn" data-page="estoque">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 6v12a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 18v-2"/><path d="M3.27 6.96L12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
+        Estoque
+      </button>
+      <button class="nav-btn" data-page="historico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+        Histórico
+      </button>
+      <button class="nav-btn" data-page="agendamentos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+        Agendamentos
+      </button>
+    </nav>
+    <div class="sidebar-clock">
+      <div class="day" id="clock-day">—</div>
+      <div class="time" id="clock-time">—</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ===================== PÁGINA: REGISTRAR ===================== -->
+    <section class="page active" id="page-registrar">
+      <div class="topbar">
+        <div>
+          <h1>Registrar movimentação</h1>
+          <p>Lance a saída ou a entrada de equipamentos. Os campos de professor, sala e horário já vêm preenchidos — é só conferir e confirmar.</p>
+        </div>
+      </div>
+
+      <div class="callout" id="onboard-hint" style="display:none;">
+        Nenhum equipamento foi configurado ainda. Antes de registrar, vá até <b>Estoque</b> e informe a quantidade que a escola possui de cada tipo.
+      </div>
+
+      <div class="stats-row" id="stats-cards"></div>
+
+      <div class="panel">
+        <h2 class="panel-title">Nova movimentação<small>Confira a data antes de confirmar — ela define o dia da semana usado nos filtros do histórico.</small></h2>
+
+        <div id="warn-stock" class="warn-banner"></div>
+
+        <div class="grid">
+          <div class="col-12">
+            <label>Tipo de movimentação</label>
+            <div class="toggle-row">
+              <button type="button" class="toggle-btn saida" id="btn-tipo-saida" data-active="1">↑ Saída (levou)</button>
+              <button type="button" class="toggle-btn entrada" id="btn-tipo-entrada" data-active="0">↓ Entrada (devolveu)</button>
+            </div>
+          </div>
+
+          <div class="col-4">
+            <div class="field">
+              <label>Professor(a)</label>
+              <select id="sel-professor"></select>
+            </div>
+            <div class="field" id="wrap-professor-outro" style="display:none;">
+              <label>Nome do(a) novo(a) professor(a)</label>
+              <input type="text" id="inp-professor-outro" placeholder="Digite o nome">
+            </div>
+          </div>
+
+          <div class="col-4">
+            <div class="field">
+              <label>Sala / turma de destino</label>
+              <select id="sel-sala"></select>
+            </div>
+          </div>
+
+          <div class="col-4">
+            <div class="field">
+              <label>Quantidade</label>
+              <div class="qty-row">
+                <button type="button" class="qty-btn" id="qty-minus">−</button>
+                <input type="number" id="inp-qtd" value="1" min="1">
+                <button type="button" class="qty-btn" id="qty-plus">+</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <label>Tipo de equipamento</label>
+            <div class="chip-group" id="chip-devices"></div>
+          </div>
+
+          <div class="col-4">
+            <div class="field"><label>Data</label><input type="date" id="inp-data"></div>
+          </div>
+          <div class="col-4">
+            <div class="field"><label>Horário</label><input type="time" id="inp-horario"></div>
+          </div>
+          <div class="col-4" style="display:flex;align-items:flex-end;">
+            <button class="btn" id="btn-registrar" style="width:100%;justify-content:center;padding:12px;">Registrar movimentação</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PÁGINA: ESTOQUE ===================== -->
+    <section class="page" id="page-estoque">
+      <div class="topbar">
+        <div>
+          <h1>Estoque por equipamento</h1>
+          <p>Informe quantos equipamentos de cada tipo a escola possui. O disponível é recalculado automaticamente a partir das movimentações do dia.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel-title">Inventário total<small>Altere a quantidade sempre que a escola comprar, perder ou dar baixa em equipamentos.</small></h2>
+        <div id="inv-list"></div>
+
+        <button class="btn ghost small" id="btn-show-newdev" style="margin-top:16px;">+ Adicionar novo tipo de equipamento</button>
+        <div id="newdev-form">
+          <div class="grid">
+            <div class="col-4"><div class="field"><label>Nome do equipamento</label><input type="text" id="newdev-name" placeholder="Ex: Projetor"></div></div>
+            <div class="col-4"><div class="field"><label>Quantidade inicial</label><input type="number" id="newdev-qtd" value="0" min="0"></div></div>
+            <div class="col-4"><div class="field"><label>Cor de identificação</label><input type="text" id="newdev-color" value="#3A6EA5"></div></div>
+          </div>
+          <button class="btn small" id="btn-add-newdev">Adicionar equipamento</button>
+          <button class="btn ghost small" id="btn-cancel-newdev">Cancelar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PÁGINA: HISTÓRICO ===================== -->
+    <section class="page" id="page-historico">
+      <div class="topbar">
+        <div>
+          <h1>Histórico de movimentações</h1>
+          <p>Filtre por dia da semana, professor, sala ou equipamento. Exporte para Excel ou remova lançamentos incorretos.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="filters-bar">
+          <div class="f"><label>Dia da semana</label><select id="f-dia"><option value="">Todos</option></select></div>
+          <div class="f"><label>Data</label><input type="date" id="f-data"></div>
+          <div class="f"><label>Professor(a)</label><select id="f-professor"><option value="">Todos</option></select></div>
+          <div class="f"><label>Sala</label><select id="f-sala"><option value="">Todas</option></select></div>
+          <div class="f"><label>Equipamento</label><select id="f-dispositivo"><option value="">Todos</option></select></div>
+          <div class="f"><label>Tipo</label><select id="f-tipo"><option value="">Todos</option><option value="saida">Saída</option><option value="entrada">Entrada</option></select></div>
+          <div class="f" style="flex:0;"><button class="btn ghost small" id="btn-limpar-filtros">Limpar filtros</button></div>
+        </div>
+
+        <div class="toolbar">
+          <div id="hist-count" style="font-size:12.5px;color:var(--ink-soft);"></div>
+          <div class="toolbar-actions">
+            <button class="btn ghost small" id="btn-exportar">⬇ Exportar Excel</button>
+            <button class="btn danger small" id="btn-limpar-historico">Limpar histórico</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th><th>Dia</th><th>Hora</th><th>Professor(a)</th><th>Sala</th><th>Tipo</th><th>Equipamento</th><th>Qtd.</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="hist-tbody"></tbody>
+          </table>
+          <div class="table-empty" id="hist-empty" style="display:none;">Nenhuma movimentação encontrada com esses filtros.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PÁGINA: AGENDAMENTOS ===================== -->
+    <section class="page" id="page-agendamentos">
+      <div class="topbar">
+        <div>
+          <h1>Agendamentos de professores</h1>
+          <p>Reserve equipamentos com antecedência para uma aula futura. Na hora do uso, registre a saída com um clique.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel-title">Nova reserva</h2>
+        <div class="grid">
+          <div class="col-4"><div class="field"><label>Professor(a)</label><select id="ag-professor"></select></div></div>
+          <div class="col-4"><div class="field"><label>Sala / turma</label><select id="ag-sala"></select></div></div>
+          <div class="col-4"><div class="field"><label>Quantidade</label><input type="number" id="ag-qtd" value="1" min="1"></div></div>
+          <div class="col-4"><label>Equipamento</label><div class="chip-group" id="ag-chip-devices"></div></div>
+          <div class="col-3"><div class="field"><label>Data</label><input type="date" id="ag-data"></div></div>
+          <div class="col-3"><div class="field"><label>Horário previsto</label><input type="time" id="ag-horario"></div></div>
+          <div class="col-6"><div class="field"><label>Observação (opcional)</label><input type="text" id="ag-obs" placeholder="Ex: aula de robótica, laboratório 2"></div></div>
+        </div>
+        <button class="btn" id="btn-agendar">Salvar reserva</button>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel-title">Reservas agendadas</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Hora</th><th>Professor(a)</th><th>Sala</th><th>Equipamento</th><th>Qtd.</th><th>Obs.</th><th></th></tr></thead>
+            <tbody id="ag-tbody"></tbody>
+          </table>
+          <div class="table-empty" id="ag-empty" style="display:none;">Nenhuma reserva cadastrada.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script>
+/* ============================================================
+   DADOS FIXOS
+============================================================ */
+const TEACHERS_BASE = ["Alana","Camila","Diler","Elaine","Elen","Fernando","Fernanda","Giovani","Ilma","Ioni","Isabella","Joseane","Karen","Ludmila","Nelson","Regina","Samuel","Sérgio","Silvia","Simone","Valdirene","Ana"];
+const ROOMS = ["6ºA","6ºB","7ºA","7ºB","8ºA","8ºB","9ºA","9ºB","1ºA","1ºB","1ºC","2ºA","2ºB","2ºC","3ºA","3ºB","3ºC"];
+const WEEKDAYS = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+const DEFAULT_DEVICES = [
+  {id:"positivo", label:"Positivo", color:"#3A6EA5"},
+  {id:"chrome", label:"Chromebook", color:"#C99A2E"},
+  {id:"adm", label:"ADM", color:"#6B4E9C"},
+  {id:"tablet", label:"Tablet", color:"#2B8C82"},
+  {id:"ultra", label:"Ultra", color:"#B5482B"},
+];
+
+/* ============================================================
+   ESTADO
+============================================================ */
+let state = {
+  devices: {},            // id -> {label, color, total}
+  movements: [],          // {id,date,time,professor,room,type,device,qty}
+  schedules: [],          // {id,date,time,professor,room,device,qty,obs}
+  customTeachers: []
+};
+const STORAGE_KEY = "estoque-notebooks-v1";
+
+function defaultDevices(){
+  const o = {};
+  DEFAULT_DEVICES.forEach(d => o[d.id] = {label:d.label, color:d.color, total:0});
+  return o;
+}
+
+async function loadState(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      state = Object.assign({devices:defaultDevices(), movements:[], schedules:[], customTeachers:[]}, parsed);
+    } else {
+      state.devices = defaultDevices();
+      await saveState();
+    }
+  }catch(e){
+    state.devices = defaultDevices();
+  }
+}
+
+let saving = false;
+async function saveState(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+  }catch(e){
+    toast("Não foi possível salvar. Tente novamente.", "err");
+  }
+}
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function todayStr(){ const d = new Date(); return d.toISOString().slice(0,10); }
+function nowTime(){ const d = new Date(); return d.toTimeString().slice(0,5); }
+function weekdayFromDate(dateStr){
+  const [y,m,d] = dateStr.split("-").map(Number);
+  return WEEKDAYS[new Date(y, m-1, d).getDay()];
+}
+function fmtDate(dateStr){
+  const [y,m,d] = dateStr.split("-");
+  return `${d}/${m}/${y}`;
+}
+function allTeachers(){ return [...TEACHERS_BASE, ...state.customTeachers]; }
+function deviceList(){ return Object.entries(state.devices).map(([id,v]) => ({id, ...v})); }
+
+function toast(msg, type){
+  const wrap = document.getElementById("toast-wrap");
+  const t = document.createElement("div");
+  t.className = "toast" + (type ? " " + type : "");
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+/* ============================================================
+   NAVEGAÇÃO
+============================================================ */
+document.querySelectorAll(".nav-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("page-" + btn.dataset.page).classList.add("active");
+    if(btn.dataset.page === "estoque") renderEstoque();
+    if(btn.dataset.page === "historico") renderHistorico();
+    if(btn.dataset.page === "agendamentos") renderAgendamentos();
+    if(btn.dataset.page === "registrar") renderStatsCards();
+  });
+});
+
+/* ============================================================
+   RELÓGIO LATERAL
+============================================================ */
+function tickClock(){
+  const d = new Date();
+  document.getElementById("clock-day").textContent = WEEKDAYS[d.getDay()];
+  document.getElementById("clock-time").textContent = d.toLocaleDateString("pt-BR") + " · " + d.toTimeString().slice(0,5);
+}
+setInterval(tickClock, 30000);
+
+/* ============================================================
+   SELECTS COMPARTILHADOS (professor / sala)
+============================================================ */
+function buildTeacherSelect(sel){
+  const current = sel.value;
+  sel.innerHTML = "";
+  allTeachers().forEach(t => {
+    const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o);
+  });
+  const outro = document.createElement("option"); outro.value = "__outro__"; outro.textContent = "Outro (novo professor)";
+  sel.appendChild(outro);
+  if(current && [...sel.options].some(o => o.value === current)) sel.value = current;
+}
+function buildRoomSelect(sel){
+  sel.innerHTML = "";
+  ROOMS.forEach(r => { const o = document.createElement("option"); o.value = r; o.textContent = r; sel.appendChild(o); });
+}
+function refreshAllTeacherSelects(){
+  buildTeacherSelect(document.getElementById("sel-professor"));
+  buildTeacherSelect(document.getElementById("ag-professor"));
+  buildTeacherFilter();
+}
+function buildTeacherFilter(){
+  const sel = document.getElementById("f-professor");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>';
+  allTeachers().forEach(t => { const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o); });
+  if(current) sel.value = current;
+}
+
+/* ============================================================
+   CHIPS DE DISPOSITIVO
+============================================================ */
+let selectedDeviceReg = null;
+let selectedDeviceAg = null;
+
+function buildDeviceChips(container, onSelect, getSelected){
+  container.innerHTML = "";
+  deviceList().forEach(d => {
+    const c = document.createElement("button");
+    c.type = "button";
+    c.className = "chip";
+    c.style.setProperty("--c", d.color);
+    c.dataset.active = getSelected() === d.id ? "1" : "0";
+    c.innerHTML = `<span class="dot"></span>${d.label}`;
+    c.addEventListener("click", () => { onSelect(d.id); });
+    container.appendChild(c);
+  });
+}
+function refreshDeviceChips(){
+  buildDeviceChips(document.getElementById("chip-devices"), (id) => {
+    selectedDeviceReg = id; refreshDeviceChips(); checkStockWarning();
+  }, () => selectedDeviceReg);
+  buildDeviceChips(document.getElementById("ag-chip-devices"), (id) => {
+    selectedDeviceAg = id; refreshDeviceChips();
+  }, () => selectedDeviceAg);
+}
+
+/* ============================================================
+   FORM: TIPO (saída/entrada)
+============================================================ */
+let tipoAtual = "saida";
+document.getElementById("btn-tipo-saida").addEventListener("click", () => setTipo("saida"));
+document.getElementById("btn-tipo-entrada").addEventListener("click", () => setTipo("entrada"));
+function setTipo(t){
+  tipoAtual = t;
+  document.getElementById("btn-tipo-saida").dataset.active = t === "saida" ? "1" : "0";
+  document.getElementById("btn-tipo-entrada").dataset.active = t === "entrada" ? "1" : "0";
+  checkStockWarning();
+}
+
+/* professor "outro" */
+document.getElementById("sel-professor").addEventListener("change", (e) => {
+  document.getElementById("wrap-professor-outro").style.display = e.target.value === "__outro__" ? "block" : "none";
+});
+
+/* quantidade +/- */
+document.getElementById("qty-minus").addEventListener("click", () => {
+  const inp = document.getElementById("inp-qtd");
+  inp.value = Math.max(1, parseInt(inp.value || 1) - 1); checkStockWarning();
+});
+document.getElementById("qty-plus").addEventListener("click", () => {
+  const inp = document.getElementById("inp-qtd");
+  inp.value = parseInt(inp.value || 1) + 1; checkStockWarning();
+});
+document.getElementById("inp-qtd").addEventListener("input", checkStockWarning);
+
+/* ============================================================
+   ESTATÍSTICAS DIÁRIAS
+============================================================ */
+function getDayStats(deviceId, dateStr){
+  let saidas = 0, entradas = 0;
+  state.movements.forEach(m => {
+    if(m.date === dateStr && m.device === deviceId){
+      if(m.type === "saida") saidas += m.qty; else entradas += m.qty;
+    }
+  });
+  const total = (state.devices[deviceId] && state.devices[deviceId].total) || 0;
+  const disponivel = total - saidas + entradas;
+  return {total, saidas, entradas, disponivel};
+}
+
+function renderStatsCards(){
+  const wrap = document.getElementById("stats-cards");
+  const dateStr = document.getElementById("inp-data").value || todayStr();
+  wrap.innerHTML = "";
+  const devs = deviceList();
+  document.getElementById("onboard-hint").style.display = devs.every(d => d.total === 0) ? "block" : "none";
+  devs.forEach(d => {
+    const s = getDayStats(d.id, dateStr);
+    const low = s.disponivel <= Math.max(1, Math.round(s.total * 0.1)) && s.total > 0;
+    const card = document.createElement("div");
+    card.className = "stat-card" + (low ? " low" : "");
+    card.style.setProperty("--dev-color", d.color);
+    card.innerHTML = `
+      <div class="dev-name">${d.label}</div>
+      <div class="dev-numbers">
+        <div class="num-block"><div class="n">${s.total}</div><div class="l">no inventário</div></div>
+        <div class="num-block"><div class="n">${s.saidas}</div><div class="l">saíram hoje</div></div>
+        <div class="num-block"><div class="n avail">${s.disponivel}</div><div class="l">disponível agora</div></div>
+      </div>`;
+    wrap.appendChild(card);
+  });
+}
+
+function checkStockWarning(){
+  const banner = document.getElementById("warn-stock");
+  if(tipoAtual !== "saida" || !selectedDeviceReg){ banner.style.display = "none"; return; }
+  const dateStr = document.getElementById("inp-data").value || todayStr();
+  const qty = parseInt(document.getElementById("inp-qtd").value || 1);
+  const s = getDayStats(selectedDeviceReg, dateStr);
+  if(qty > s.disponivel){
+    banner.style.display = "block";
+    banner.textContent = `Atenção: só há ${s.disponivel} unidade(s) de ${state.devices[selectedDeviceReg].label} disponível(is) nesta data.`;
+  } else {
+    banner.style.display = "none";
+  }
+}
+
+/* ============================================================
+   REGISTRAR MOVIMENTAÇÃO
+============================================================ */
+document.getElementById("btn-registrar").addEventListener("click", async () => {
+  if(!selectedDeviceReg){ toast("Selecione o tipo de equipamento.", "err"); return; }
+  const selProf = document.getElementById("sel-professor");
+  let professor = selProf.value;
+  if(professor === "__outro__"){
+    professor = document.getElementById("inp-professor-outro").value.trim();
+    if(!professor){ toast("Digite o nome do(a) professor(a).", "err"); return; }
+    if(!allTeachers().includes(professor)){
+      state.customTeachers.push(professor);
+    }
+  }
+  const room = document.getElementById("sel-sala").value;
+  const qty = parseInt(document.getElementById("inp-qtd").value || 1);
+  const date = document.getElementById("inp-data").value || todayStr();
+  const time = document.getElementById("inp-horario").value || nowTime();
+
+  if(qty < 1){ toast("Quantidade inválida.", "err"); return; }
+
+  if(tipoAtual === "saida"){
+    const s = getDayStats(selectedDeviceReg, date);
+    if(qty > s.disponivel){
+      if(!confirm(`Só há ${s.disponivel} unidade(s) disponível(is). Registrar mesmo assim?`)) return;
+    }
+  }
+
+  state.movements.unshift({
+    id: uid(), date, time, professor, room, type: tipoAtual, device: selectedDeviceReg, qty
+  });
+  await saveState();
+  toast(tipoAtual === "saida" ? "Saída registrada." : "Entrada registrada.", "ok");
+
+  document.getElementById("inp-qtd").value = 1;
+  document.getElementById("inp-professor-outro").value = "";
+  document.getElementById("wrap-professor-outro").style.display = "none";
+  refreshAllTeacherSelects();
+  document.getElementById("sel-professor").value = professor && allTeachers().includes(professor) ? professor : selProf.value;
+  document.getElementById("inp-horario").value = nowTime();
+  renderStatsCards();
+  checkStockWarning();
+});
+
+/* ============================================================
+   ESTOQUE
+============================================================ */
+function renderEstoque(){
+  const wrap = document.getElementById("inv-list");
+  wrap.innerHTML = "";
+  const dateStr = todayStr();
+  deviceList().forEach(d => {
+    const s = getDayStats(d.id, dateStr);
+    const row = document.createElement("div");
+    row.className = "inv-row";
+    row.innerHTML = `
+      <span class="inv-dot" style="background:${d.color}"></span>
+      <div class="inv-name">${d.label}</div>
+      <div class="inv-stat"><div class="n">${s.saidas}</div><div class="l">saídas hoje</div></div>
+      <div class="inv-stat"><div class="n">${s.entradas}</div><div class="l">entradas hoje</div></div>
+      <div class="inv-stat"><div class="n">${s.disponivel}</div><div class="l">disponível</div></div>
+      <div class="inv-edit">
+        <label style="margin:0;">Total:</label>
+        <input type="number" min="0" value="${d.total}" data-dev="${d.id}" class="inv-total-input">
+        <button class="btn small" data-save="${d.id}">Salvar</button>
+      </div>`;
+    wrap.appendChild(row);
+  });
+  wrap.querySelectorAll("[data-save]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.save;
+      const input = wrap.querySelector(`.inv-total-input[data-dev="${id}"]`);
+      const val = parseInt(input.value || 0);
+      state.devices[id].total = Math.max(0, val);
+      await saveState();
+      toast("Quantidade do inventário atualizada.", "ok");
+      renderEstoque();
+      renderStatsCards();
+    });
+  });
+}
+
+document.getElementById("btn-show-newdev").addEventListener("click", () => {
+  const f = document.getElementById("newdev-form");
+  f.style.display = f.style.display === "block" ? "none" : "block";
+});
+document.getElementById("btn-cancel-newdev").addEventListener("click", () => {
+  document.getElementById("newdev-form").style.display = "none";
+});
+document.getElementById("btn-add-newdev").addEventListener("click", async () => {
+  const name = document.getElementById("newdev-name").value.trim();
+  const qty = parseInt(document.getElementById("newdev-qtd").value || 0);
+  const color = document.getElementById("newdev-color").value.trim() || "#3A6EA5";
+  if(!name){ toast("Digite o nome do equipamento.", "err"); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + uid().slice(0,4);
+  state.devices[id] = {label: name, color, total: Math.max(0, qty)};
+  await saveState();
+  document.getElementById("newdev-name").value = "";
+  document.getElementById("newdev-qtd").value = 0;
+  document.getElementById("newdev-form").style.display = "none";
+  refreshDeviceChips();
+  buildDeviceFilterOptions();
+  renderEstoque();
+  renderStatsCards();
+  toast("Equipamento adicionado.", "ok");
+});
+
+/* ============================================================
+   HISTÓRICO
+============================================================ */
+function buildWeekdayFilter(){
+  const sel = document.getElementById("f-dia");
+  sel.innerHTML = '<option value="">Todos</option>';
+  WEEKDAYS.forEach(w => { const o = document.createElement("option"); o.value = w; o.textContent = w; sel.appendChild(o); });
+}
+function buildRoomFilter(){
+  const sel = document.getElementById("f-sala");
+  sel.innerHTML = '<option value="">Todas</option>';
+  ROOMS.forEach(r => { const o = document.createElement("option"); o.value = r; o.textContent = r; sel.appendChild(o); });
+}
+function buildDeviceFilterOptions(){
+  const sel = document.getElementById("f-dispositivo");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>';
+  deviceList().forEach(d => { const o = document.createElement("option"); o.value = d.id; o.textContent = d.label; sel.appendChild(o); });
+  if(current) sel.value = current;
+}
+
+function getFilteredMovements(){
+  const dia = document.getElementById("f-dia").value;
+  const data = document.getElementById("f-data").value;
+  const prof = document.getElementById("f-professor").value;
+  const sala = document.getElementById("f-sala").value;
+  const disp = document.getElementById("f-dispositivo").value;
+  const tipo = document.getElementById("f-tipo").value;
+
+  return state.movements.filter(m => {
+    if(dia && weekdayFromDate(m.date) !== dia) return false;
+    if(data && m.date !== data) return false;
+    if(prof && m.professor !== prof) return false;
+    if(sala && m.room !== sala) return false;
+    if(disp && m.device !== disp) return false;
+    if(tipo && m.type !== tipo) return false;
+    return true;
+  });
+}
+
+function renderHistorico(){
+  buildDeviceFilterOptions();
+  const rows = getFilteredMovements();
+  const tbody = document.getElementById("hist-tbody");
+  tbody.innerHTML = "";
+  document.getElementById("hist-empty").style.display = rows.length ? "none" : "block";
+  document.getElementById("hist-count").textContent = `${rows.length} movimentação(ões) encontrada(s)`;
+
+  rows.forEach(m => {
+    const dev = state.devices[m.device] || {label: m.device, color:"#888"};
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${fmtDate(m.date)}</td>
+      <td>${weekdayFromDate(m.date)}</td>
+      <td>${m.time}</td>
+      <td>${m.professor}</td>
+      <td>${m.room}</td>
+      <td><span class="tag ${m.type}">${m.type === "saida" ? "Saída" : "Entrada"}</span></td>
+      <td><span class="dev-tag"><span class="dot" style="background:${dev.color}"></span>${dev.label}</span></td>
+      <td>${m.qty}</td>
+      <td><button class="icon-btn" data-del="${m.id}" title="Excluir linha">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button></td>`;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll("[data-del]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if(!confirm("Excluir esta linha do histórico?")) return;
+      state.movements = state.movements.filter(m => m.id !== btn.dataset.del);
+      await saveState();
+      renderHistorico();
+      renderStatsCards();
+      toast("Linha excluída.", "ok");
+    });
+  });
+}
+
+["f-dia","f-data","f-professor","f-sala","f-dispositivo","f-tipo"].forEach(id => {
+  document.getElementById(id).addEventListener("change", renderHistorico);
+});
+document.getElementById("btn-limpar-filtros").addEventListener("click", () => {
+  document.getElementById("f-dia").value = "";
+  document.getElementById("f-data").value = "";
+  document.getElementById("f-professor").value = "";
+  document.getElementById("f-sala").value = "";
+  document.getElementById("f-dispositivo").value = "";
+  document.getElementById("f-tipo").value = "";
+  renderHistorico();
+});
+document.getElementById("btn-limpar-historico").addEventListener("click", async () => {
+  if(!confirm("Tem certeza que deseja apagar TODO o histórico de movimentações? Essa ação não pode ser desfeita.")) return;
+  state.movements = [];
+  await saveState();
+  renderHistorico();
+  renderStatsCards();
+  toast("Histórico apagado.", "ok");
+});
+document.getElementById("btn-exportar").addEventListener("click", () => {
+  const rows = getFilteredMovements().map(m => ({
+    "Data": fmtDate(m.date),
+    "Dia da semana": weekdayFromDate(m.date),
+    "Horário": m.time,
+    "Professor(a)": m.professor,
+    "Sala": m.room,
+    "Tipo": m.type === "saida" ? "Saída" : "Entrada",
+    "Equipamento": (state.devices[m.device] || {}).label || m.device,
+    "Quantidade": m.qty
+  }));
+  if(!rows.length){ toast("Não há dados para exportar.", "err"); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Movimentações");
+  XLSX.writeFile(wb, `historico-equipamentos-${todayStr()}.xlsx`);
+  toast("Arquivo Excel gerado.", "ok");
+});
+
+/* ============================================================
+   AGENDAMENTOS
+============================================================ */
+document.getElementById("btn-agendar").addEventListener("click", async () => {
+  if(!selectedDeviceAg){ toast("Selecione o tipo de equipamento.", "err"); return; }
+  let professor = document.getElementById("ag-professor").value;
+  if(professor === "__outro__"){ toast('Cadastre o nome pela tela "Registrar" primeiro.', "err"); return; }
+  const room = document.getElementById("ag-sala").value;
+  const qty = parseInt(document.getElementById("ag-qtd").value || 1);
+  const date = document.getElementById("ag-data").value || todayStr();
+  const time = document.getElementById("ag-horario").value || nowTime();
+  const obs = document.getElementById("ag-obs").value.trim();
+
+  state.schedules.push({id: uid(), date, time, professor, room, device: selectedDeviceAg, qty, obs});
+  await saveState();
+  document.getElementById("ag-obs").value = "";
+  renderAgendamentos();
+  toast("Reserva salva.", "ok");
+});
+
+function renderAgendamentos(){
+  const tbody = document.getElementById("ag-tbody");
+  const sorted = [...state.schedules].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+  tbody.innerHTML = "";
+  document.getElementById("ag-empty").style.display = sorted.length ? "none" : "block";
+  sorted.forEach(s => {
+    const dev = state.devices[s.device] || {label: s.device, color:"#888"};
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${fmtDate(s.date)}</td>
+      <td>${s.time}</td>
+      <td>${s.professor}</td>
+      <td>${s.room}</td>
+      <td><span class="dev-tag"><span class="dot" style="background:${dev.color}"></span>${dev.label}</span></td>
+      <td>${s.qty}</td>
+      <td>${s.obs || "—"}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn small" data-use="${s.id}">Registrar agora</button>
+        <button class="icon-btn" data-delsched="${s.id}" title="Excluir reserva">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll("[data-use]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const s = state.schedules.find(x => x.id === btn.dataset.use);
+      if(!s) return;
+      state.movements.unshift({id: uid(), date: todayStr(), time: nowTime(), professor: s.professor, room: s.room, type: "saida", device: s.device, qty: s.qty});
+      state.schedules = state.schedules.filter(x => x.id !== s.id);
+      await saveState();
+      renderAgendamentos();
+      renderStatsCards();
+      toast("Saída registrada a partir da reserva.", "ok");
+    });
+  });
+  tbody.querySelectorAll("[data-delsched]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if(!confirm("Excluir esta reserva?")) return;
+      state.schedules = state.schedules.filter(x => x.id !== btn.dataset.delsched);
+      await saveState();
+      renderAgendamentos();
+      toast("Reserva excluída.", "ok");
+    });
+  });
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+document.getElementById("inp-data").addEventListener("change", () => { renderStatsCards(); checkStockWarning(); });
+
+async function init(){
+  await loadState();
+  tickClock();
+
+  buildTeacherSelect(document.getElementById("sel-professor"));
+  buildTeacherSelect(document.getElementById("ag-professor"));
+  buildRoomSelect(document.getElementById("sel-sala"));
+  buildRoomSelect(document.getElementById("ag-sala"));
+  buildWeekdayFilter();
+  buildRoomFilter();
+  buildTeacherFilter();
+  buildDeviceFilterOptions();
+
+  document.getElementById("inp-data").value = todayStr();
+  document.getElementById("inp-horario").value = nowTime();
+  document.getElementById("ag-data").value = todayStr();
+  document.getElementById("ag-horario").value = nowTime();
+
+  setTipo("saida");
+  refreshDeviceChips();
+  renderStatsCards();
+}
+init();
+</script>
+</body>
+</html>
